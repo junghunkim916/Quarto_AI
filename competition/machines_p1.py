@@ -1,16 +1,16 @@
-import numpy as np
-import random
-from itertools import product
+# import numpy as np
+# import random
+# from itertools import product
 
-import time
+# import time
 
-class P1():
-    def __init__(self, board, available_pieces):
-        self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]  # All 16 pieces
-        self.board = board # Include piece indices. 0:empty / 1~16:piece
-        self.available_pieces = available_pieces # Currently available pieces in a tuple type (e.g. (1, 0, 1, 0))
+# class P1():
+#     def __init__(self, board, available_pieces):
+#         self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]  # All 16 pieces
+#         self.board = board # Include piece indices. 0:empty / 1~16:piece
+#         self.available_pieces = available_pieces # Currently available pieces in a tuple type (e.g. (1, 0, 1, 0))
     
-    #기존 코드 
+#     #기존 코드 
     # def select_piece(self):
     #     # Make your own algorithm here
 
@@ -29,6 +29,51 @@ class P1():
     #     time.sleep(1) # Check time consumption (Delete when you make your algorithm)
         
     #     return random.choice(available_locs)
+    
+# import numpy as np
+# import random
+# from itertools import product
+
+# import time
+
+# class P1():
+#     def __init__(self, board, available_pieces):
+#         self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]  # All 16 pieces
+#         self.board = board # Include piece indices. 0:empty / 1~16:piece
+#         self.available_pieces = available_pieces # Currently available pieces in a tuple type (e.g. (1, 0, 1, 0))
+    
+#     def select_piece(self):
+#         # Make your own algorithm here
+
+#         time.sleep(0.5) # Check time consumption (Delete when you make your algorithm)
+
+#         return random.choice(self.available_pieces)
+
+#     def place_piece(self, selected_piece):
+#         # selected_piece: The selected piece that you have to place on the board (e.g. (1, 0, 1, 0)).
+        
+#         # Available locations to place the piece
+#         available_locs = [(row, col) for row, col in product(range(4), range(4)) if self.board[row][col]==0]
+
+#         # Make your own algorithm here
+
+#         time.sleep(1) # Check time consumption (Delete when you make your algorithm)
+        
+#         return random.choice(available_locs)
+import numpy as np
+import random
+from itertools import product
+import time
+
+class P1():
+    def __init__(self, board, available_pieces):
+        #4개의 binary특징을 가진 16개의 말 생성 
+        self.board = board
+        self.available_pieces = available_pieces
+        #16개 말 생성 
+        self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]
+
+    #인자로 받은 board에서 승리하는 줄이 있는지 확인 -> 있으면 그 줄에 점수 100점 부여 
     def evaluate_board(self, board):
         def check_line(line):
             #line을 입력받음 -> 빈 칸이 있는 경우 -> 아직 승리 불가능 

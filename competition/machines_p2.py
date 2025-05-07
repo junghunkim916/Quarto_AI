@@ -1,33 +1,63 @@
+# import numpy as np
+# import random
+# from itertools import product
+
+# import time
+
+# class P2():
+#     def __init__(self, board, available_pieces):
+#         self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]  # All 16 pieces
+#         self.board = board # Include piece indices. 0:empty / 1~16:piece
+#         self.available_pieces = available_pieces # Currently available pieces in a tuple type (e.g. (1, 0, 1, 0))
+#     #기존 코드 
+#     def select_piece(self):
+#         # Make your own algorithm here
+
+#         time.sleep(0.5) # Check time consumption (Delete when you make your algorithm)
+
+#         return random.choice(self.available_pieces)
+
+#     def place_piece(self, selected_piece):
+#         # selected_piece: The selected piece that you have to place on the board (e.g. (1, 0, 1, 0)).
+        
+#         # Available locations to place the piece
+#         available_locs = [(row, col) for row, col in product(range(4), range(4)) if self.board[row][col]==0]
+
+#         # Make your own algorithm here
+
+#         time.sleep(1) # Check time consumption (Delete when you make your algorithm)
+        
+#         return random.choice(available_locs)
+
 import numpy as np
 import random
 from itertools import product
-
 import time
 
 class P2():
     def __init__(self, board, available_pieces):
-        self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]  # All 16 pieces
-        self.board = board # Include piece indices. 0:empty / 1~16:piece
-        self.available_pieces = available_pieces # Currently available pieces in a tuple type (e.g. (1, 0, 1, 0))
-    #기존 코드 
-    # def select_piece(self):
-    #     # Make your own algorithm here
+        self.board = board
+        self.available_pieces = available_pieces
+        self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]
 
-    #     time.sleep(0.5) # Check time consumption (Delete when you make your algorithm)
+    def evaluate_board(self, board):
+        def check_line(line):
+            if 0 in line:
+                return 0
+            characteristics = np.array([self.pieces[piece_idx - 1] for piece_idx in line])
+            for i in range(4):
+                if len(set(characteristics[:, i])) == 1:
+                    return 100
+            return 0
 
-    #     return random.choice(self.available_pieces)
+        score = 0
+        for i in range(4):
+            score += check_line([board[i][j] for j in range(4)])
+            score += check_line([board[j][i] for j in range(4)])
+        score += check_line([board[i][i] for i in range(4)])
+        score += check_line([board[i][3 - i] for i in range(4)])
+        return score
 
-    # def place_piece(self, selected_piece):
-    #     # selected_piece: The selected piece that you have to place on the board (e.g. (1, 0, 1, 0)).
-        
-    #     # Available locations to place the piece
-    #     available_locs = [(row, col) for row, col in product(range(4), range(4)) if self.board[row][col]==0]
-
-    #     # Make your own algorithm here
-
-    #     time.sleep(1) # Check time consumption (Delete when you make your algorithm)
-        
-    #     return random.choice(available_locs)
     def select_piece(self):
         start_time = time.time()
         # 상대방이 승리할 확률이 높은 조각을 제거하는 방향으로 선택
@@ -71,4 +101,5 @@ class P2():
         end_time = time.time()
         print(f"[P2 PLACE] Time: {end_time - start_time:.3f}s | Placed at: {best_move} | Score: {best_score} | Piece: {selected_piece}")
         return best_move
+
     

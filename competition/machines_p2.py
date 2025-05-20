@@ -1,105 +1,145 @@
-# import numpy as np
-# import random
-# from itertools import product
-
-# import time
-
-# class P2():
-#     def __init__(self, board, available_pieces):
-#         self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]  # All 16 pieces
-#         self.board = board # Include piece indices. 0:empty / 1~16:piece
-#         self.available_pieces = available_pieces # Currently available pieces in a tuple type (e.g. (1, 0, 1, 0))
-#     #기존 코드 
-#     def select_piece(self):
-#         # Make your own algorithm here
-
-#         time.sleep(0.5) # Check time consumption (Delete when you make your algorithm)
-
-#         return random.choice(self.available_pieces)
-
-#     def place_piece(self, selected_piece):
-#         # selected_piece: The selected piece that you have to place on the board (e.g. (1, 0, 1, 0)).
-        
-#         # Available locations to place the piece
-#         available_locs = [(row, col) for row, col in product(range(4), range(4)) if self.board[row][col]==0]
-
-#         # Make your own algorithm here
-
-#         time.sleep(1) # Check time consumption (Delete when you make your algorithm)
-        
-#         return random.choice(available_locs)
-
 import numpy as np
 import random
 from itertools import product
 import time
+import math
 
-class P2():
+class P2:
+    """
+    Quarto 플레이어: 기본 Min-Max 알고리즘 구현
+    """
     def __init__(self, board, available_pieces):
-        self.board = board
-        self.available_pieces = available_pieces
-        self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]
-
-    def evaluate_board(self, board):
-        def check_line(line):
-            if 0 in line:
-                return 0
-            characteristics = np.array([self.pieces[piece_idx - 1] for piece_idx in line])
-            for i in range(4):
-                if len(set(characteristics[:, i])) == 1:
-                    return 100
-            return 0
-
-        score = 0
-        for i in range(4):
-            score += check_line([board[i][j] for j in range(4)])
-            score += check_line([board[j][i] for j in range(4)])
-        score += check_line([board[i][i] for i in range(4)])
-        score += check_line([board[i][3 - i] for i in range(4)])
-        return score
+        # board: 4×4 numpy array, 0=empty, 1~16=piece index
+        self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]  # All 16 pieces
+        self.board = board.copy()
+        self.available_pieces = list(available_pieces)
+        self.max_depth = 2  # Min-Max 탐색 깊이
 
     def select_piece(self):
-        start_time = time.time()
-        # 상대방이 승리할 확률이 높은 조각을 제거하는 방향으로 선택
-        max_opponent_risk = -1
-        selected = random.choice(self.available_pieces)
-        empty_locs = [(r, c) for r in range(4) for c in range(4) if self.board[r][c] == 0]
+        """
+        상대에게 줄 말을 Min-Max로 선택
+        Min 단계: 상대가 말을 놓아 얻을 수 있는 최대 점수를 최소화
+        """
+        # 첫 수: 무작위 선택
+        if np.count_nonzero(self.board) == 0:
+            return random.choice(self.available_pieces)
+        # 빈칸 및 인접 후보군 계산
+        empties = self._empty_squares(self.board)
+        # 인접 후보군: 기존 돌과 인접한 빈 칸만
+        neighbors = []
+        directions = [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]
+        for (r,c) in empties:
+            for dr,dc in directions:
+                nr, nc = r+dr, c+dc
+                if 0 <= nr < 4 and 0 <= nc < 4 and self.board[nr,nc] != 0:
+                    neighbors.append((r,c))
+                    break
+        candidate_locs = neighbors if neighbors else empties
 
+        best_pieces = []
+        best_score = math.inf  # P1 입장에선 상대 최고 점수의 최소화
+        # 각 piece 후보에 대해 - 일단 지금은 모든 이용가능한 말들 비교 => 후보를 좁혀야 할 것 같음. (MoveGenerator)
         for piece in self.available_pieces:
-            risk_score = 0
-            for r, c in empty_locs:
-                temp_board = self.board.copy()
-                temp_board[r][c] = self.pieces.index(piece) + 1
-                score = self.evaluate_board(temp_board)
-                risk_score = max(risk_score, score)
-            if risk_score > max_opponent_risk:
-                max_opponent_risk = risk_score
-                selected = piece
+            # 상대가 이 말로 얻을 수 있는 최대 점수 계산
+            opponent_best = -math.inf
+            #일단 말을 모든 빈칸에 둔다. 둔 후 각각 평가할 것.
+            for loc in candidate_locs:
+                b2 = self.board.copy()
+                idx = self.available_pieces.index(piece) + 1
+                b2[loc] = idx
+                score = self._evaluate(b2)  # 상대 입장에서의 평가 (Evaluate Function)
+                #상대가 이 말로 얻을 수 있는 최고점 - 즉, 최적의 loc을 둿을때의 가치
+                if score > opponent_best:
+                    opponent_best = score
+            # opponenet_best 중 최소인 piece 선택 - 상대가 택했을때 점수가 가장 낮을 말 선택
+            if opponent_best < best_score:
+                best_score = opponent_best
+                best_pieces.append(piece)
+            elif opponent_best == best_score:
+                best_pieces.append(piece)
+        #최종 선택
+        chosen_piece = random.choice(best_pieces) if best_pieces else random.choice(self.available_pieces)
 
-        end_time = time.time()
-        print(f"[P2 SELECT] Time: {end_time - start_time:.3f}s | Given Piece: {selected} | Risk: {max_opponent_risk}")
-        return selected
+        board_score = self._evaluate(self.board)
+        print(f"[DEBUG select_piece] selected piece={chosen_piece}, best_score={best_score}")
+        print(f"[DEBUG select_piece] board before selection:\n{self.board}")
+        print(f"[DEBUG select_piece] board heuristic score: {board_score}")
+        time.sleep(0.5)
+        return chosen_piece
+
 
     def place_piece(self, selected_piece):
-        start_time = time.time()
-        best_score = -float('inf')
-        best_move = None
-        empty_locs = [(r, c) for r in range(4) for c in range(4) if self.board[r][c] == 0]
-        selected_index = self.pieces.index(selected_piece) + 1
+        """
+        받은 말을 Min-Max 없이 가장 높은 heuristic 위치에 놓기
+        """
+        # available_locs = [(row, col) for row, col in product(range(4), range(4)) if self.board[row][col]==0]
+        empties = self._empty_squares(self.board)
+        neighbors = []
+        directions = [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]
+        for (r,c) in empties:
+            for dr,dc in directions:
+                nr, nc = r+dr, c+dc
+                if 0 <= nr < 4 and 0 <= nc < 4 and self.board[nr,nc] != 0:
+                    neighbors.append((r,c))
+                    break
+        if neighbors:
+            empties = neighbors
+        # 첫 수 중앙 2*2그리드 우선 배치
+        if not self.board.any():
+            centers = [(1,1),(1,2),(2,1),(2,2)]
+            for c in centers:
+                if c in empties:
+                    return c
 
-        for r, c in empty_locs:
-            temp_board = self.board.copy()
-            temp_board[r][c] = selected_index
-            score = self.evaluate_board(temp_board)
+        best_locs = []
+        best_score = -np.inf
+        #모든 가능한 칸마다 선택된 말을 놓아보며 최대가치를 계산함.
+        for loc in empties:
+            b2 = self.board.copy()
+            idx = self.available_pieces.index(selected_piece) + 1
+            b2[loc] = idx
+            #이때 보드의 가치를 평가 -> 내가 이기면 +, 지면 -
+            score = self._evaluate(b2)
             if score > best_score:
                 best_score = score
-                best_move = (r, c)
-
-        if not best_move:
-            best_move = random.choice(empty_locs)
-
-        end_time = time.time()
-        print(f"[P2 PLACE] Time: {end_time - start_time:.3f}s | Placed at: {best_move} | Score: {best_score} | Piece: {selected_piece}")
-        return best_move
-
+                best_locs = [loc]
+            elif score == best_score:
+                best_locs.append(loc)
+        #최종결정 
+        chosen = random.choice(best_locs) if best_locs else random.choice(empties)
+        b_final = self.board.copy()
+        idx_final = self.available_pieces.index(selected_piece) + 1
+        b_final[chosen] = idx_final
+        final_score = self._evaluate(b_final)
+        print(f"[DEBUG place_piece] chosen loc={chosen}, best_score={best_score}")
+        print(f"[DEBUG place_piece] board after placement:\
+{b_final}")
+        print(f"[DEBUG place_piece] board heuristic score: {final_score}")
+        time.sleep(1)
+        return chosen
     
+    def _empty_squares(self, board):
+        """빈 칸 좌표 목록"""
+        return [(r, c) for r in range(4) for c in range(4) if board[r, c] == 0]
+
+
+    def _evaluate(self, board):
+        """
+        휴리스틱 평가: 완성된 Quarto 라인 개수
+        """
+        score = 0
+        lines = []
+        # 행/열
+        for i in range(4):
+            lines.append(board[i, :])
+            lines.append(board[:, i])
+        # 대각선
+        lines.append(board.diagonal())
+        lines.append(np.fliplr(board).diagonal())
+        for line in lines:
+            if 0 not in line:
+                attrs = np.array([tuple(map(int, format(x-1, '04b'))) for x in line])
+                if np.any(np.all(attrs == attrs[0], axis=0)):
+                    score += 1
+        return score
+

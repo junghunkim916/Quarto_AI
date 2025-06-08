@@ -420,7 +420,7 @@ class MCTS:
         return best_child.action
 
 
-class P1:
+class P2:
     def __init__(self, board, available_pieces):
         self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]  # All 16 pieces
         self.board = board

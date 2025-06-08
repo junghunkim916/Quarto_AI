@@ -3,7 +3,7 @@ import numpy as np
 import random
 import time
 import math
-from itertools import product
+import copy
 
 # 게임에서 쓰는 16개의 piece 정의 (main.py 과 동일)
 pieces = [(i, j, k, l)
@@ -34,10 +34,10 @@ def check_win(board):
     # 행/열
     for r in range(4):
         if line_win([board[r][c] for c in range(4)]):
-            return True 
+            return True
     for c in range(4):
         if line_win([board[r][c] for r in range(4)]):
-            return True 
+            return True
     # 대각선
     if line_win([board[i][i] for i in range(4)]): return True
     if line_win([board[i][3 - i] for i in range(4)]): return True
@@ -102,7 +102,7 @@ class Node:
         return child
 
     # def select_child(self, c_param=1.4):
-    def select_child(self, round_cnt, initial_c = 1.414, decay_rate = 0.05):
+    def select_child(self, round_cnt, initial_c = 1.4, decay_rate = 0.05):
         """선택(Selection): UCT 기준으로 자식 노드 중 하나 선택"""
         c_param = initial_c / (1 + decay_rate * round_cnt)
         best = None
@@ -114,6 +114,35 @@ class Node:
             if uct > best_uct:
                 best_uct, best = uct, child
         return best
+
+    # def simulate(self):
+    #     """시뮬레이션(Simulation): 랜덤 롤아웃해서 승자를 돌려줌"""
+    #     sim_board = self.board.copy()
+    #     sim_avail = self.available_pieces.copy()
+    #     sim_piece = self.current_piece
+    #     player = self.current_player
+    #     while True:
+    #         # 1) 선택 단계: piece 고르기
+    #         if sim_piece is None and not sim_avail:
+    #             return None
+    #         if sim_piece is None:
+    #             sim_piece = random.choice(sim_avail)
+    #             sim_avail.remove(sim_piece)
+    #         # 2) 배치 단계: 무작위 좌표에 놓기
+    #         moves = get_place_actions(sim_board)
+    #         if not moves:
+    #             return None
+    #         r, c = random.choice(moves)
+    #         sim_board[r][c] = pieces.index(sim_piece) + 1
+    #         # 승리 검사
+    #         if check_win(sim_board):
+    #             return player
+    #         # 무승부 검사
+    #         if not sim_avail:
+    #             return None
+    #         # 턴 교대
+    #         player = 3 - player
+    #         sim_piece = None
 
     def simulate(self):
         """시뮬레이션(Simulation): 휴리스틱 기반 롤아웃"""
@@ -422,19 +451,17 @@ class MCTS:
 
 class P1:
     def __init__(self, board, available_pieces):
-        self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]  # All 16 pieces
         self.board = board
         self.available_pieces = available_pieces
 
     def select_piece(self):
         # 상대가 놓을 piece를 고름 → for_place=False
-        mcts = MCTS(self.board, self.available_pieces, time_budget=5)
+        mcts = MCTS(self.board, self.available_pieces, time_budget=0.5)
         return mcts.search_actions(for_place=False)
 
     def place_piece(self, selected_piece):
         # 주어진 piece를 어디에 놓을지 고름 → for_place=True
-        available_locs = [(row, col) for row, col in product(range(4), range(4)) if self.board[row][col]==0]
         mcts = MCTS(self.board, self.available_pieces,
                     current_piece=selected_piece,
-                    time_budget=5)
+                    time_budget=1.0)
         return mcts.search_actions(for_place=True)

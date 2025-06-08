@@ -3,7 +3,7 @@ import numpy as np
 import random
 import time
 import math
-from itertools import product
+import copy
 
 # 게임에서 쓰는 16개의 piece 정의 (main.py 과 동일)
 pieces = [(i, j, k, l)
@@ -14,10 +14,7 @@ pieces = [(i, j, k, l)
 
 def get_place_actions(board):
     """빈 칸 좌표 리스트 반환"""
-    return [(r, c)
-            for r in range(board.shape[0])
-            for c in range(board.shape[1])
-            if board[r][c] == 0]
+    return [(r, c) for r in range(board.shape[0])for c in range(board.shape[1]) if board[r][c] == 0]
 
 def line_win(line):
     """한 줄(line)에 놓인 4개의 piece가 특정 속성 하나를 공유하는지"""
@@ -34,10 +31,10 @@ def check_win(board):
     # 행/열
     for r in range(4):
         if line_win([board[r][c] for c in range(4)]):
-            return True 
+            return True
     for c in range(4):
         if line_win([board[r][c] for r in range(4)]):
-            return True 
+            return True
     # 대각선
     if line_win([board[i][i] for i in range(4)]): return True
     if line_win([board[i][3 - i] for i in range(4)]): return True
@@ -102,7 +99,7 @@ class Node:
         return child
 
     # def select_child(self, c_param=1.4):
-    def select_child(self, round_cnt, initial_c = 1.414, decay_rate = 0.05):
+    def select_child(self, round_cnt, initial_c = 1.4, decay_rate = 0.05):
         """선택(Selection): UCT 기준으로 자식 노드 중 하나 선택"""
         c_param = initial_c / (1 + decay_rate * round_cnt)
         best = None
@@ -116,228 +113,33 @@ class Node:
         return best
 
     def simulate(self):
-        """시뮬레이션(Simulation): 휴리스틱 기반 롤아웃"""
+        """시뮬레이션(Simulation): 랜덤 롤아웃해서 승자를 돌려줌"""
         sim_board = self.board.copy()
         sim_avail = self.available_pieces.copy()
         sim_piece = self.current_piece
         player = self.current_player
-        
-        # select 시 사용할 휴리스틱 함수 
-        def select_piece_heuristic(board, avail_pieces):
-            
-            def get_attributes(index):
-                return tuple(map(int, format(index - 1, '04b')))
-            # double_threat, safety, next_win 등 로직 재활용 
-            def is_double_threat(board, piece, loc):
-                b2 = board.copy()
-                idx = pieces.index(piece) + 1
-                b2[loc] = idx
-                r, c = loc
-                candidates = []
-                candidates.append([(r, j) for j in range(4)])
-                candidates.append([(i, c) for i in range(4)])
-                if r == c:
-                    candidates.append([(i, i) for i in range(4)])
-                if r + c == 3:
-                    candidates.append([(i, 3 - i) for i in range(4)])
-                for sr, sc in [(r-1, c-1), (r-1, c), (r, c-1), (r, c)]:
-                    if 0 <= sr <= 2 and 0 <= sc <= 2:
-                        candidates.append([(sr, sc), (sr, sc+1), (sr+1, sc), (sr+1, sc+1)])
-                threat_count = 0
-                for line in candidates:
-                    vals = [b2[x][y] for (x, y) in line]
-                    if vals.count(0) != 1:
-                        continue
-                    attrs = [get_attributes(v) for v in vals if v != 0]
-                    for i in range(4):
-                        bits = [a[i] for a in attrs]
-                        if bits.count(bits[0]) == 3:
-                            threat_count += 1
-                            break
-                return threat_count >= 2
-
-            def gives_opponent_double_threat(board, piece):
-                for loc in get_place_actions(board):
-                    if is_double_threat(board, piece, loc):
-                        return True
-                return False
-
-            def piece_safety_score(board, piece):
-                existing = [pieces[idx-1] for r in range(4) for c in range(4) if (idx := board[r][c]) != 0]
-                if not existing:
-                    return 0
-                target = piece
-                max_match = max(sum(1 for i in range(4) if ex[i] == target[i]) for ex in existing)
-                return 4 - max_match
-
-            def piece_next_win_score(board, piece):
-                for r, c in get_place_actions(board):
-                    b2 = board.copy()
-                    b2[r][c] = pieces.index(piece) + 1
-                    for loc2 in get_place_actions(b2):
-                        b3 = b2.copy()
-                        b3[loc2] = pieces.index(piece) + 1
-                        if check_win(b3):
-                            return -1
-                return 1
-
-            def combined_select_heuristic(board, piece):
-                score = 0
-                if gives_opponent_double_threat(board, piece):
-                    score -= 1000
-                score += piece_safety_score(board, piece) * 20
-                score += piece_next_win_score(board, piece) * 50
-                if gives_opponent_double_threat(board, piece):
-                    score -= 200
-                else:
-                    score += 100
-                return score
-
-            scored = [(combined_select_heuristic(board, piece), piece) for piece in avail_pieces]
-            max_score = max(scored, key=lambda x: x[0])[0]
-            best_pieces = [p for s, p in scored if s == max_score]
-            return random.choice(best_pieces)
-        
-        ##place시 사용할 heuristic함수들 
-        def get_attributes(index):
-            return tuple(map(int, format(index - 1, '04b')))
-        
-        # 이중 위협 헬퍼 함수 - heuristic 2
-        def is_double_threat(board, piece, loc):
-            b2 = board.copy()
-            idx = pieces.index(piece) + 1
-            b2[loc] = idx
-            r, c = loc
-
-            candidates = []
-            # 행
-            candidates.append([(r, j) for j in range(4)])
-            # 열
-            candidates.append([(i, c) for i in range(4)])
-            # 대각선 좌상→우하
-            if r == c:
-                candidates.append([(i, i) for i in range(4)])
-            # 대각선 우상→좌하
-            if r + c == 3:
-                candidates.append([(i, 3 - i) for i in range(4)])
-            # 2×2 블록
-            for sr, sc in [(r-1, c-1), (r-1, c), (r, c-1), (r, c)]:
-                if 0 <= sr <= 2 and 0 <= sc <= 2:
-                    candidates.append([(sr, sc), (sr, sc+1), (sr+1, sc), (sr+1, sc+1)])
-
-            threat_count = 0
-            for line in candidates:
-                vals = [b2[x][y] for (x, y) in line]
-                if vals.count(0) != 1:
-                    continue
-                attrs = [get_attributes(v) for v in vals if v != 0]
-                for i in range(4):
-                    bits = [a[i] for a in attrs]
-                    if bits.count(bits[0]) == 3:
-                        threat_count += 1
-                        break
-            return threat_count >= 2
-
-        #heuristic 1
-        def count_matching_attrs_partial(attrs):
-            arr = np.array(attrs)
-            counts = []
-            for i in range(4):
-                col = arr[:, i]
-                unique = set(col)
-                counts.append(len(unique))
-            match_score = 0
-            if len(attrs) == 4 and any(cnt == 1 for cnt in counts):
-                return 1000
-            if len(attrs) == 3 and any(cnt == 2 for cnt in counts):
-                match_score += 20
-            if len(attrs) == 2 and any(cnt == 2 for cnt in counts):
-                match_score += 10
-            return match_score
-
-        def place_evaluate(board, piece, loc):
-            b2 = board.copy()
-            idx = pieces.index(piece) + 1
-            b2[loc] = idx
-            r, c = loc
-            lines = []
-            lines.append(b2[r, :])
-            lines.append(b2[:, c])
-            if r == c:
-                lines.append(b2.diagonal())
-            if r + c == 3:
-                lines.append(np.fliplr(b2).diagonal())
-            square_coords = [(r, c), (r-1, c-1), (r-1, c), (r, c-1)]
-            for sr, sc in square_coords:
-                if 0 <= sr <= 2 and 0 <= sc <= 2:
-                    square = [
-                        b2[sr, sc], b2[sr, sc+1],
-                        b2[sr+1, sc], b2[sr+1, sc+1]
-                    ]
-                    if 0 not in square:
-                        attrs = [get_attributes(x) for x in square]
-                        arr = np.array(attrs)
-                        for i in range(4):
-                            if np.all(arr[:, i] == arr[0][i]):
-                                return 1000
-                    lines.append(square)
-            total_score = 0
-            for line in lines:
-                values = [x for x in line if x != 0]
-                if len(values) >= 2:
-                    attrs = [get_attributes(x) for x in values]
-                    score = count_matching_attrs_partial(attrs)
-                    if score == 1000:
-                        return 1000
-                    total_score += score
-                    
-            #이중 위협 점수 추가 
-            if is_double_threat(board, piece, loc):
-                return 500
-                    
-            return total_score
-
         while True:
-            # 1. 말 선택 (랜덤)
+            # 1) 선택 단계: piece 고르기
             if sim_piece is None and not sim_avail:
                 return None
-            # if sim_piece is None:
-            #     sim_piece = random.choice(sim_avail)
-            #     sim_avail.remove(sim_piece)
             if sim_piece is None:
-                sim_piece = select_piece_heuristic(sim_board, sim_avail)
+                sim_piece = random.choice(sim_avail)
                 sim_avail.remove(sim_piece)
-
-            # 2. 위치 선택 (휴리스틱 기반)
+            # 2) 배치 단계: 무작위 좌표에 놓기
             moves = get_place_actions(sim_board)
             if not moves:
                 return None
-
-            best_score = -float('inf')
-            best_moves = []
-            for move in moves:
-                score = place_evaluate(sim_board, sim_piece, move)
-                if score > best_score:
-                    best_score = score
-                    best_moves = [move]
-                elif score == best_score:
-                    best_moves.append(move)
-
-            r, c = random.choice(best_moves)
+            r, c = random.choice(moves)
             sim_board[r][c] = pieces.index(sim_piece) + 1
-
-            # 3. 승리 여부 확인
+            # 승리 검사
             if check_win(sim_board):
                 return player
-
-            # 4. 무승부 여부
+            # 무승부 검사
             if not sim_avail:
                 return None
-
-            # 5. 다음 턴
+            # 턴 교대
             player = 3 - player
             sim_piece = None
-
 
     def backpropagate(self, result):
         """역전파(Backpropagation): 결과를 따라 루트까지 방문/승리 통계 업데이트"""
@@ -419,22 +221,20 @@ class MCTS:
         best_child = max(root.children, key=lambda c: c.visits)
         return best_child.action
 
-
+# P1 클래스: piece 선택과 배치를 각각 MCTS로 수행
 class P1:
     def __init__(self, board, available_pieces):
-        self.pieces = [(i, j, k, l) for i in range(2) for j in range(2) for k in range(2) for l in range(2)]  # All 16 pieces
         self.board = board
         self.available_pieces = available_pieces
 
     def select_piece(self):
         # 상대가 놓을 piece를 고름 → for_place=False
-        mcts = MCTS(self.board, self.available_pieces, time_budget=5)
+        mcts = MCTS(self.board, self.available_pieces, time_budget=0.5)
         return mcts.search_actions(for_place=False)
 
     def place_piece(self, selected_piece):
         # 주어진 piece를 어디에 놓을지 고름 → for_place=True
-        available_locs = [(row, col) for row, col in product(range(4), range(4)) if self.board[row][col]==0]
         mcts = MCTS(self.board, self.available_pieces,
                     current_piece=selected_piece,
-                    time_budget=5)
+                    time_budget=1.0)
         return mcts.search_actions(for_place=True)
